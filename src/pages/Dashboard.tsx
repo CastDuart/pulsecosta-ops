@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { apiFetch } from '../api/client';
 import type { Factura, CajaMovimiento, TimeFilter } from '../types';
 import { formatEur, formatDate, isOverdue, daysOverdue } from '../lib/iva';
-import { AlertTriangle, TrendingUp, Clock, Wallet, BarChart3 } from 'lucide-react';
+import { useT } from '../lib/i18n';
+import { useAuth } from '../context/AuthContext';
+import { AlertTriangle, TrendingUp, Clock, Wallet, BarChart3, Trash2 } from 'lucide-react';
 
 type QFilter = 'all' | 'Q1' | 'Q2' | 'Q3' | 'Q4';
 
@@ -36,13 +38,6 @@ function filterByQ<T extends { fecha_emision?: string; fecha?: string }>(
   });
 }
 
-const timeOpts: { value: TimeFilter; label: string }[] = [
-  { value: 'all', label: 'All time' },
-  { value: 'this_month', label: 'This month' },
-  { value: 'last_month', label: 'Last month' },
-  { value: 'this_year', label: 'This year' },
-];
-
 function StatCard({ label, value, color = '#E8F0FE', icon }: {
   label: string; value: string; color?: string; icon: React.ReactNode;
 }) {
@@ -63,18 +58,37 @@ function StatCard({ label, value, color = '#E8F0FE', icon }: {
 }
 
 export default function Dashboard() {
+  const { t } = useT();
+  const { user } = useAuth();
   const [facturas, setFacturas]     = useState<Factura[]>([]);
   const [caja, setCaja]             = useState<CajaMovimiento[]>([]);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('this_month');
   const [vatQ, setVatQ]             = useState<QFilter>('all');
   const [loading, setLoading]       = useState(true);
+  const [resetting, setResetting]   = useState(false);
 
-  useEffect(() => {
-    Promise.all([
-      apiFetch<Factura[]>('/ops/facturas'),
-      apiFetch<CajaMovimiento[]>('/ops/caja'),
-    ]).then(([f, c]) => { setFacturas(f); setCaja(c); }).finally(() => setLoading(false));
-  }, []);
+  const isAdmin = user?.roles?.some(r => ['super_admin'].includes(r)) || false;
+
+  const load = () => Promise.all([
+    apiFetch<Factura[]>('/ops/facturas'),
+    apiFetch<CajaMovimiento[]>('/ops/caja'),
+  ]).then(([f, c]) => { setFacturas(f); setCaja(c); });
+
+  useEffect(() => { load().finally(() => setLoading(false)); }, []);
+
+  async function handleReset() {
+    if (!window.confirm(t.dashboard.resetConfirm)) return;
+    setResetting(true);
+    try {
+      await apiFetch('/ops/admin/reset', { method: 'POST' });
+      alert(t.dashboard.resetSuccess);
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setResetting(false);
+    }
+  }
 
   // Overdue detection (frontend, no cron needed)
   const enriched = facturas.map(f => ({
@@ -100,28 +114,47 @@ export default function Dashboard() {
   const outputVat = vatFiltered.filter(f => f.estado === 'collected').reduce((s, f) => s + f.iva_importe, 0);
   const inputVat  = filterByQ(caja, vatQ).filter(m => m.tipo === 'expense').reduce((s, m) => s + m.iva_importe, 0);
 
-  if (loading) return <div style={{ color: '#8892B0', padding: 40 }}>Loading...</div>;
+  if (loading) return <div style={{ color: '#8892B0', padding: 40 }}>{t.common.loading}</div>;
+
+  const timeOpts: { value: TimeFilter; label: string }[] = [
+    { value: 'all',        label: t.dashboard.allTime },
+    { value: 'this_month', label: t.dashboard.thisMonth },
+    { value: 'last_month', label: t.dashboard.lastMonth },
+    { value: 'this_year',  label: t.dashboard.thisYear },
+  ];
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
         <h1 style={{ fontFamily: 'Syne, sans-serif', fontSize: 26, fontWeight: 800, color: '#E8F0FE', margin: 0 }}>
-          Dashboard
+          {t.dashboard.title}
         </h1>
-        <select
-          value={timeFilter} onChange={e => setTimeFilter(e.target.value as TimeFilter)}
-          style={{ width: 'auto', padding: '6px 12px', fontSize: 13 }}
-        >
-          {timeOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {isAdmin && (
+            <button onClick={handleReset} disabled={resetting} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '7px 14px', borderRadius: 8, border: '1px solid rgba(255,71,87,0.3)',
+              background: 'rgba(255,71,87,0.08)', color: '#FF4757',
+              cursor: 'pointer', fontSize: 12, fontWeight: 600,
+            }}>
+              <Trash2 size={13} /> {resetting ? '...' : t.dashboard.resetData}
+            </button>
+          )}
+          <select
+            value={timeFilter} onChange={e => setTimeFilter(e.target.value as TimeFilter)}
+            style={{ width: 'auto', padding: '6px 12px', fontSize: 13 }}
+          >
+            {timeOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
       </div>
 
       {/* Metric cards */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 28 }}>
-        <StatCard label="Collected (incl. VAT)" value={formatEur(collected)} color="#43E97B" icon={<TrendingUp size={28} />} />
-        <StatCard label="Outstanding"           value={formatEur(outstanding)} color="#FF8C00" icon={<Clock size={28} />} />
-        <StatCard label="Cash Balance"          value={formatEur(cashBalance)} color="#38BDF8" icon={<Wallet size={28} />} />
-        <StatCard label="30-Day Forecast"       value={formatEur(forecast)} color="#A78BFA" icon={<BarChart3 size={28} />} />
+        <StatCard label={t.dashboard.collected}  value={formatEur(collected)}  color="#43E97B" icon={<TrendingUp size={28} />} />
+        <StatCard label={t.dashboard.outstanding} value={formatEur(outstanding)} color="#FF8C00" icon={<Clock size={28} />} />
+        <StatCard label={t.dashboard.cashBalance} value={formatEur(cashBalance)} color="#38BDF8" icon={<Wallet size={28} />} />
+        <StatCard label={t.dashboard.forecast}   value={formatEur(forecast)}   color="#A78BFA" icon={<BarChart3 size={28} />} />
       </div>
 
       {/* Overdue warning */}
@@ -133,7 +166,7 @@ export default function Dashboard() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <AlertTriangle size={16} color="#FF4757" />
             <span style={{ color: '#FF4757', fontWeight: 700, fontSize: 14 }}>
-              Overdue Invoices ({overdueList.length})
+              {t.dashboard.overdueInvoices} ({overdueList.length})
             </span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -147,7 +180,7 @@ export default function Dashboard() {
                 <span style={{ color: '#8892B0', fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>{f.numero}</span>
                 <span style={{ color: '#FF8C00', fontFamily: 'JetBrains Mono, monospace' }}>{formatEur(f.total)}</span>
                 <span style={{ color: '#FF4757', fontSize: 12 }}>
-                  {f.fecha_vencimiento ? `${daysOverdue(f.fecha_vencimiento)}d overdue` : ''}
+                  {f.fecha_vencimiento ? `${daysOverdue(f.fecha_vencimiento)}${t.dashboard.daysOverdue}` : ''}
                 </span>
               </div>
             ))}
@@ -159,7 +192,7 @@ export default function Dashboard() {
         {/* VAT Report */}
         <div style={{ background: '#112240', borderRadius: 12, padding: '20px 24px', border: '1px solid #1a2f50' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#E8F0FE' }}>VAT Report</h3>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#E8F0FE' }}>{t.dashboard.vatReport}</h3>
             <select value={vatQ} onChange={e => setVatQ(e.target.value as QFilter)} style={{ width: 'auto', padding: '4px 10px', fontSize: 12 }}>
               {(['all','Q1','Q2','Q3','Q4'] as QFilter[]).map(q => (
                 <option key={q} value={q}>{q === 'all' ? 'All' : q}</option>
@@ -167,9 +200,9 @@ export default function Dashboard() {
             </select>
           </div>
           {[
-            { label: 'Output VAT (collected)', value: outputVat, color: '#43E97B' },
-            { label: 'Input VAT (expenses)',   value: inputVat,  color: '#FF4757' },
-            { label: 'Net VAT payable',        value: outputVat - inputVat, color: '#FF8C00' },
+            { label: t.dashboard.outputVat, value: outputVat, color: '#43E97B' },
+            { label: t.dashboard.inputVat,  value: inputVat,  color: '#FF4757' },
+            { label: t.dashboard.netVat,    value: outputVat - inputVat, color: '#FF8C00' },
           ].map(row => (
             <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #1a2f50', fontSize: 13 }}>
               <span style={{ color: '#8892B0' }}>{row.label}</span>
@@ -180,7 +213,7 @@ export default function Dashboard() {
 
         {/* Recent Cash */}
         <div style={{ background: '#112240', borderRadius: 12, padding: '20px 24px', border: '1px solid #1a2f50' }}>
-          <h3 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 700, color: '#E8F0FE' }}>Recent Cash Movements</h3>
+          <h3 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 700, color: '#E8F0FE' }}>{t.dashboard.recentCash}</h3>
           {caja.slice(0, 5).map(m => (
             <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #1a2f50', fontSize: 13 }}>
               <div>
@@ -195,18 +228,18 @@ export default function Dashboard() {
               </span>
             </div>
           ))}
-          {caja.length === 0 && <div style={{ color: '#8892B0', fontSize: 13 }}>No movements yet</div>}
+          {caja.length === 0 && <div style={{ color: '#8892B0', fontSize: 13 }}>{t.dashboard.noMovements}</div>}
         </div>
       </div>
 
       {/* Recent Invoices */}
       <div style={{ background: '#112240', borderRadius: 12, padding: '20px 24px', border: '1px solid #1a2f50' }}>
-        <h3 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 700, color: '#E8F0FE' }}>Latest Invoices</h3>
+        <h3 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 700, color: '#E8F0FE' }}>{t.dashboard.latestInvoices}</h3>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #1a2f50' }}>
-                {['Number','Client','Date','Due','Total','Status'].map(h => (
+                {[t.invoices.number, t.clients.name, t.common.date, t.invoices.due, t.common.total, t.common.status].map(h => (
                   <th key={h} style={{ textAlign: 'left', padding: '8px 12px', color: '#8892B0', fontWeight: 500 }}>{h}</th>
                 ))}
               </tr>
@@ -226,7 +259,7 @@ export default function Dashboard() {
               ))}
             </tbody>
           </table>
-          {enriched.length === 0 && <div style={{ color: '#8892B0', fontSize: 13, padding: '12px 0' }}>No invoices yet</div>}
+          {enriched.length === 0 && <div style={{ color: '#8892B0', fontSize: 13, padding: '12px 0' }}>{t.dashboard.noInvoices}</div>}
         </div>
       </div>
     </div>

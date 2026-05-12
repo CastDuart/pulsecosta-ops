@@ -1,21 +1,23 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useT } from '../lib/i18n';
 import {
   LayoutDashboard, Users, MapPin, FileText, Wallet, Clock, LogOut,
 } from 'lucide-react';
 
-const NAV = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/clients',   icon: Users,           label: 'Clients' },
-  { to: '/visits',    icon: MapPin,          label: 'Visits CRM' },
-  { to: '/invoices',  icon: FileText,        label: 'Invoices' },
-  { to: '/cash',      icon: Wallet,          label: 'Cash' },
-  { to: '/timelog',   icon: Clock,           label: 'Time Log' },
-];
-
 export default function Layout() {
   const { user, logout } = useAuth();
+  const { t, lang, setLang } = useT();
   const navigate = useNavigate();
+
+  const NAV = [
+    { to: '/dashboard', icon: LayoutDashboard, label: t.nav.dashboard },
+    { to: '/clients',   icon: Users,           label: t.nav.clients },
+    { to: '/visits',    icon: MapPin,          label: t.nav.visits },
+    { to: '/invoices',  icon: FileText,        label: t.nav.invoices },
+    { to: '/cash',      icon: Wallet,          label: t.nav.cash },
+    { to: '/timelog',   icon: Clock,           label: t.nav.timelog },
+  ];
 
   function handleLogout() {
     logout();
@@ -30,13 +32,31 @@ export default function Layout() {
         display: 'flex', flexDirection: 'column',
         borderRight: '1px solid #1a2f50', flexShrink: 0,
       }}>
-        {/* Logo */}
+        {/* Logo + lang toggle */}
         <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid #1a2f50' }}>
-          <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: 18, color: '#FF8C00' }}>
-            OmniPulse
-          </div>
-          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#8892B0', marginTop: 2 }}>
-            OPS v2.0
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: 18, color: '#FF8C00' }}>
+                OmniPulse
+              </div>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#8892B0', marginTop: 2 }}>
+                OPS v2.0
+              </div>
+            </div>
+            {/* Language toggle */}
+            <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
+              {(['en','es'] as const).map(l => (
+                <button key={l} onClick={() => setLang(l)} style={{
+                  padding: '2px 7px', borderRadius: 4, border: 'none',
+                  fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                  fontFamily: 'JetBrains Mono, monospace',
+                  background: lang === l ? '#FF8C00' : '#1a2f50',
+                  color: lang === l ? '#0A192F' : '#8892B0',
+                }}>
+                  {l.toUpperCase()}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -82,7 +102,7 @@ export default function Layout() {
             background: 'rgba(255,71,87,0.1)', color: '#FF4757',
             cursor: 'pointer', fontSize: 13, fontFamily: 'DM Sans, sans-serif',
           }}>
-            <LogOut size={14} /> Logout
+            <LogOut size={14} /> {t.nav.logout}
           </button>
         </div>
       </aside>
