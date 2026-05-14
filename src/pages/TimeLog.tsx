@@ -3,7 +3,7 @@ import { apiFetch } from '../api/client';
 import type { Jornada } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { Clock, Play, Square, MapPin, Download } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 function formatMinutes(min: number): string {
   const h = Math.floor(min / 60);
@@ -84,19 +84,27 @@ export default function TimeLog() {
     }
   }
 
-  function exportExcel() {
+  async function exportExcel() {
     const rows = jornadas.map(j => ({
-      'Date':      j.fecha,
-      'Worker':    j.user_name || '',
-      'Clock in':  formatTime(j.entrada),
-      'Clock out': j.salida ? formatTime(j.salida) : '',
-      'Hours':     j.total_minutos ? formatMinutes(j.total_minutos) : '',
+      'Date':        j.fecha,
+      'Worker':      j.user_name || '',
+      'Clock in':    formatTime(j.entrada),
+      'Clock out':   j.salida ? formatTime(j.salida) : '',
+      'Hours':       j.total_minutos ? formatMinutes(j.total_minutos) : '',
       'Location in': j.direccion_entrada || (j.lat_entrada ? `${j.lat_entrada.toFixed(4)}, ${j.lng_entrada?.toFixed(4)}` : ''),
     }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Time Log');
-    XLSX.writeFile(wb, `TimeLog_${new Date().toISOString().slice(0,10)}.xlsx`);
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Time Log');
+    if (rows.length > 0) {
+      ws.columns = Object.keys(rows[0]).map(key => ({ header: key, key, width: 22 }));
+      ws.getRow(1).font = { bold: true };
+      rows.forEach(r => ws.addRow(r));
+    }
+    const buf = await wb.xlsx.writeBuffer();
+    const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `TimeLog_${new Date().toISOString().slice(0,10)}.xlsx`;
+    a.click(); URL.revokeObjectURL(url);
   }
 
   // Total hours this month
