@@ -2,7 +2,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useT } from '../lib/i18n';
 import {
-  LayoutDashboard, Users, MapPin, FileText, Wallet, Clock, LogOut,
+  LayoutDashboard, Users, MapPin, FileText, Wallet, Clock, LogOut, Sparkles,
 } from 'lucide-react';
 
 export default function Layout() {
@@ -17,6 +17,7 @@ export default function Layout() {
     { to: '/invoices',  icon: FileText,        label: t.nav.invoices },
     { to: '/cash',      icon: Wallet,          label: t.nav.cash },
     { to: '/timelog',   icon: Clock,           label: t.nav.timelog },
+    { to: '/ai',        icon: Sparkles,        label: lang === 'es' ? 'Asistente IA' : 'AI Assistant' },
   ];
 
   function handleLogout() {

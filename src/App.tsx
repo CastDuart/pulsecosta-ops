@@ -8,6 +8,7 @@ import Visits from './pages/Visits';
 import Invoices from './pages/Invoices';
 import Cash from './pages/Cash';
 import TimeLog from './pages/TimeLog';
+import AiAssistant from './pages/AiAssistant';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="invoices"  element={<Invoices />} />
         <Route path="cash"      element={<Cash />} />
         <Route path="timelog"   element={<TimeLog />} />
+        <Route path="ai"        element={<AiAssistant />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
