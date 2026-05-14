@@ -1,6 +1,28 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import type { Factura, CajaMovimiento, Visita } from '../types';
 import { formatDate } from './iva';
+
+async function download(rows: Record<string, unknown>[], name: string) {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Datos');
+
+  if (rows.length === 0) {
+    ws.addRow(['Sin datos']);
+  } else {
+    ws.columns = Object.keys(rows[0]).map(key => ({ header: key, key, width: 20 }));
+    ws.getRow(1).font = { bold: true };
+    rows.forEach(row => ws.addRow(row));
+  }
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${name}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export function exportFacturasExcel(facturas: Factura[]) {
   const rows = facturas.map(f => ({
@@ -17,22 +39,22 @@ export function exportFacturasExcel(facturas: Factura[]) {
     'Tipo IVA':        f.tipo_iva,
     'Método pago':     f.metodo_pago,
   }));
-  download(rows, `Facturas_${new Date().toISOString().slice(0,10)}`);
+  return download(rows, `Facturas_${new Date().toISOString().slice(0,10)}`);
 }
 
 export function exportCajaExcel(movimientos: CajaMovimiento[]) {
   const rows = movimientos.map(m => ({
-    'Fecha':              formatDate(m.fecha),
-    'Tipo':               m.tipo === 'income' ? 'Ingreso' : 'Gasto',
-    'Categoría':          m.categoria || '',
-    'Cliente':            m.cliente_nombre || '',
-    'Ref. factura':       m.factura_id ? `FAC-${m.factura_id}` : '',
-    'Concepto':           m.concepto,
-    'Importe':            m.importe,
-    'IVA %':              m.iva_rate,
-    'Importe IVA':        m.iva_importe,
+    'Fecha':          formatDate(m.fecha),
+    'Tipo':           m.tipo === 'income' ? 'Ingreso' : 'Gasto',
+    'Categoría':      m.categoria || '',
+    'Cliente':        m.cliente_nombre || '',
+    'Ref. factura':   m.factura_id ? `FAC-${m.factura_id}` : '',
+    'Concepto':       m.concepto,
+    'Importe':        m.importe,
+    'IVA %':          m.iva_rate,
+    'Importe IVA':    m.iva_importe,
   }));
-  download(rows, `Caja_${new Date().toISOString().slice(0,10)}`);
+  return download(rows, `Caja_${new Date().toISOString().slice(0,10)}`);
 }
 
 export function exportVisitasExcel(visitas: Visita[]) {
@@ -50,12 +72,5 @@ export function exportVisitasExcel(visitas: Visita[]) {
     'Próxima acción':    v.proxima_accion || '',
     'Notas':             v.notas || '',
   }));
-  download(rows, `Visitas_${new Date().toISOString().slice(0,10)}`);
-}
-
-function download(rows: Record<string, unknown>[], name: string) {
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Datos');
-  XLSX.writeFile(wb, `${name}.xlsx`);
+  return download(rows, `Visitas_${new Date().toISOString().slice(0,10)}`);
 }
